@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Searchbar from './Searchbar/Searchbar';
 import { fetchImages } from '../services/Api';
 import ImageGallery from './ImageGallery/ImageGallery';
@@ -7,132 +7,103 @@ import { Audio } from 'react-loader-spinner';
 import Modal from './Modal/Modal';
 import styles from './styles.module.css';
 
-class App extends React.Component {
-  state = {
-    images: [],
-    query: '',
-    page: 1,
-    totalImages: 0,
-    loading: false,
-    showModal: false,
-    selectedImage: '',
-    alt: '',
-    error: '',
+const App = () => {
+  const [images, setImages] = useState([]);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalImages, setTotalImages] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+  const [alt, setAlt] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (query.trim() === '') return;
+    setLoading(true);
+    fetchImages(query, page)
+      .then(data => {
+        if (data.totalHits === 0) return;
+        setImages(prevImages => [...prevImages, ...data.hits]);
+        setTotalImages(data.totalHits);
+      })
+      .catch(() => {
+        setError('An error occurred while processing the request');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [query, page]);
+
+  const handleSubmit = newQuery => {
+    setQuery(newQuery);
+    setPage(1);
+    setImages([]);
+    setTotalImages(0);
   };
 
-  componentDidUpdate(_, prevState) {
-    const { query, page } = this.state;
-    if (query !== prevState.query || page !== prevState.page) {
-      this.setState({ loading: true });
-      fetchImages(query, page)
-        .then(data => {
-          if (data.totalHits === 0) {
-            return;
-          }
-
-          this.setState(prevState => ({
-            images: [...prevState.images, ...data.hits],
-            totalImages: data.totalHits,
-          }));
-        })
-        .catch(() => {
-          this.setState({
-            error: 'An error occurred while processing the request',
-          });
-        })
-        .finally(() => {
-          this.setState({ loading: false });
-        });
-    }
-  }
-
-  handleSubmit = query => {
-    this.setState({ query, page: 1, images: [], totalImages: 0 });
+  const handleLoadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => {
-      return { page: prevState.page + 1 };
-    });
+  const handleImageClick = (largeImageURL, altText) => {
+    setShowModal(true);
+    setSelectedImage(largeImageURL);
+    setAlt(altText);
   };
 
-  handleImageClick = (largeImageURL, alt) => {
-    this.setState({
-      showModal: true,
-      selectedImage: largeImageURL,
-      alt,
-    });
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedImage('');
+    setAlt('');
   };
 
-  handleCloseModal = () => {
-    this.setState({
-      showModal: false,
-      selectedImage: '',
-      alt: '',
-    });
-  };
+  const noResultsMessage =
+    totalImages === 0 && query.trim() !== '' && !loading ? (
+      <p className={styles.NoResults}>
+        No results found for your query. 🙁 Please try again.
+      </p>
+    ) : null;
 
-  render() {
-    const {
-      images,
-      query,
-      loading,
-      showModal,
-      selectedImage,
-      alt,
-      totalImages,
-      error,
-    } = this.state;
-
-    const noResultsMessage =
-      totalImages === 0 && query.trim() !== '' && !loading ? (
-        <p className={styles.NoResults}>
-          No results found for your query. 🙁 Please try again.
-        </p>
-      ) : null;
-
-    return (
-      <div className={styles.App}>
-        <Searchbar onSubmit={this.handleSubmit} query={query} />
-        {loading ? (
-          <div className={styles.LoaderContainer}>
-            <Audio
-              height="100"
-              width="100"
-              color="#4fa94d"
-              ariaLabel="audio-loading"
-              wrapperStyle={{}}
-              wrapperClass="wrapper-class"
-              visible={true}
-            />
-          </div>
-        ) : null}
-
-        {error ? (
-          <p className={styles.Error}>
-            An error occurred while processing the request
-          </p>
-        ) : null}
-
-        {images.length > 0 && (
-          <ImageGallery images={images} onClick={this.handleImageClick} />
-        )}
-        {totalImages !== images.length && (
-          <Button onLoadMore={this.handleLoadMore} />
-        )}
-
-        {showModal && (
-          <Modal
-            largeImageURL={selectedImage}
-            alt={alt}
-            onClose={this.handleCloseModal}
+  return (
+    <div className={styles.App}>
+      <Searchbar onSubmit={handleSubmit} query={query} />
+      {loading ? (
+        <div className={styles.LoaderContainer}>
+          <Audio
+            height="100"
+            width="100"
+            color="#4fa94d"
+            ariaLabel="audio-loading"
+            wrapperStyle={{}}
+            wrapperClass="wrapper-class"
+            visible={true}
           />
-        )}
+        </div>
+      ) : null}
 
-        {noResultsMessage}
-      </div>
-    );
-  }
-}
+      {error ? (
+        <p className={styles.Error}>
+          An error occurred while processing the request
+        </p>
+      ) : null}
+
+      {images.length > 0 && (
+        <ImageGallery images={images} onClick={handleImageClick} />
+      )}
+      {totalImages !== images.length && <Button onLoadMore={handleLoadMore} />}
+
+      {showModal && (
+        <Modal
+          largeImageURL={selectedImage}
+          alt={alt}
+          onClose={handleCloseModal}
+        />
+      )}
+
+      {noResultsMessage}
+    </div>
+  );
+};
 
 export default App;
